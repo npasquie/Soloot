@@ -6,9 +6,15 @@ import "hardhat/console.sol";
 
 
 contract NFTReceiver is IERC721Receiver {
+    uint8 nbOfNFTReceived;
+    
+    function getNbOfNFTRecived() public view returns (uint8) {
+        return nbOfNFTReceived;
+    }
 
     function onERC721Received(address, address, uint256, bytes memory) public virtual override returns (bytes4) {
         console.log('erc721 recu');
+        nbOfNFTReceived++;
         return this.onERC721Received.selector;
     }
 }
