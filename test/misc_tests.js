@@ -59,11 +59,13 @@ describe("Greeter", function() {
     const sampleNFT = await SampleNFT.deploy();
     await sampleNFT.deployed();
 
-    let tokenID = await sampleNFT.awardItem(constants.defaultAccount, "http://google.com");
-    console.log("tokenID deployed : "+ tokenID.value);
+    let tokenID = await sampleNFT.awardItem(constants.defaultAccount);
+    console.log("tokenID deployed : ");
+    console.log(tokenID);
+    console.log("account : " + constants.defaultAccount);
 
-    let uri = await sampleNFT.tokenURI(tokenID.value);
-    console.log("found uri : "+ uri);
+    let owner = await sampleNFT.myOwnerOf(12);
+    console.log("found owner : "+ owner.value);
 
     const NFTReceiver = await ethers.getContractFactory("NFTReceiver");
     const nftReceiver = await NFTReceiver.deploy();

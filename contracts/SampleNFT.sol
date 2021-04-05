@@ -3,25 +3,25 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
+import "hardhat/console.sol";
 
-contract SampleNFT is ERC721URIStorage {
-    using Counters for Counters.Counter;
-    Counters.Counter private _tokenIds;
+contract SampleNFT is ERC721 {
 
-    constructor() ERC721("GameItem", "ITM") {}
+    constructor() ERC721("GameItem", "ITM") {
+        console.log("constructor");
+    }
 
-    function awardItem(address player, string memory tokenURI)
+    function awardItem(address player)
     public
     returns (uint256)
     {
-        _tokenIds.increment();
+        console.log("award item, address received : " , player);
+        _mint(player, 12);
+        return 12;
+    }
 
-        uint256 newItemId = _tokenIds.current();
-        _mint(player, newItemId);
-        _setTokenURI(newItemId, tokenURI);
-
-        return newItemId;
+    function myOwnerOf(uint256 tokenId) public view virtual returns (address){
+        console.log("ownerof - arg received : " , tokenId);
+        return ownerOf(tokenId);
     }
 }
