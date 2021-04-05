@@ -14,7 +14,7 @@ contract NFTReceiver is IERC721Receiver {
 
     function onERC721Received(address, address, uint256, bytes memory) public virtual override returns (bytes4) {
         console.log('erc721 recu');
-        nbOfNFTReceived++;
-        return this.onERC721Received.selector;
+        nbOfNFTReceived = nbOfNFTReceived + 1;
+        return 0x150b7a02; // signals ERC-721 onERC721Received compliance
     }
 }
