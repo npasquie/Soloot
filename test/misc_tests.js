@@ -64,7 +64,7 @@ describe("Greeter", function() {
     console.log(tokenID);
     console.log("account : " + constants.defaultAccount);
 
-    let owner = await sampleNFT.myOwnerOf(12);
+    let owner = await sampleNFT.ownerOf(12);
     console.log("found owner : "+ owner.value);
 
     const NFTReceiver = await ethers.getContractFactory("NFTReceiver");
