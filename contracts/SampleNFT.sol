@@ -8,14 +8,13 @@ import "hardhat/console.sol";
 contract SampleNFT is ERC721 {
 
     constructor() ERC721("GameItem", "ITM") {
-        console.log("constructor");
+        console.log("sampleNFT constructing");
     }
 
     function awardItem(address player)
     public
     returns (uint256)
     {
-        console.log("award item, address received : " , player);
         _mint(player, 12);
         return 12;
     }
