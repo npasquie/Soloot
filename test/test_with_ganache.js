@@ -13,6 +13,8 @@ describe("sorare test suite", function (){
     let myweb3
     let accounts
     let sorareTokens
+    let nftReceiver
+    let subVault
 
     before(async function (){
         myweb3 = new myWeb3("http://localhost:8545")
@@ -31,7 +33,7 @@ describe("sorare test suite", function (){
     })
 
     it("should transfer the card from an user to the receiver contract", async function (){
-        let nftReceiver = await deployContract(nftReceiverJson, constants.acc0, myweb3)
+        nftReceiver = await deployContract(nftReceiverJson, constants.acc0, myweb3)
         let contrAddress = nftReceiver.options.address
         await sendContrFunc(sorareTokens.methods.safeTransferFrom(constants.acc0,contrAddress,uniqueManuelCardId), constants.acc0)
         let nbOfReceivedNFTs = await nftReceiver.methods.getNbOfNFTReceived().call()
@@ -40,10 +42,19 @@ describe("sorare test suite", function (){
 
     it("should refuse an NFT that doesn't come from sorare", async function (){
         let sampleNFT = await deployContract(sampleNFTJson, constants.acc0, myweb3)
-        let subVault = await deployContract(subVaultJson, constants.acc0, myweb3)
+        subVault = await deployContract(subVaultJson, constants.acc0, myweb3)
         await sendContrFunc(sampleNFT.methods.awardItem(subVault.options.address), constants.acc0)
         let nbOfReceivedNFTs = await subVault.methods.getNbOfNFTReceived().call()
         assert.equal(nbOfReceivedNFTs, 0)
+    })
+
+    it("should accept a sorare card send from a contract", async function (){
+        await sendContrFunc(nftReceiver.methods.sendPossessedNFT(
+            constants.sorareTokensAddress,
+            uniqueManuelCardId,
+            subVault.options.address), constants.acc0)
+        let nbOfReceivedNFTs = await subVault.methods.getNbOfNFTReceived().call()
+        assert.equal(nbOfReceivedNFTs, 1)
     })
 })
 
