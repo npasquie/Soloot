@@ -6,6 +6,8 @@ artifacts
 
 .idea
 /personnal-notes.txt
-/contracts/.deps/
+/contracts/.deps
 /deploy/
 /deployments/
+contracts/artifacts
+contracts/lib/artifacts
