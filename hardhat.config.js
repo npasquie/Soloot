@@ -36,6 +36,17 @@ module.exports = {
     deployer: {
       default: 0
     }
+  },
+  networks: {
+    hardhat: {
+      forking: {
+        url: "https://eth-mainnet.alchemyapi.io/v2/bfXBx_v2S60_g5FxETt89rg9utuW0fTr",
+        blockNumber: 12238810
+      },
+      accounts: {
+        mnemonic: "clutch captain shoe salt awake harvest setup primary inmate ugly among become"
+      }
+    }
   }
 };
 

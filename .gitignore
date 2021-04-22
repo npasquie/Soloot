@@ -11,3 +11,4 @@ artifacts
 /deployments/
 contracts/artifacts
 contracts/lib/artifacts
+scripts/launch_chain.sh
