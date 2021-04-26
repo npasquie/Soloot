@@ -2,12 +2,13 @@
 pragma solidity ^0.8.3;
 
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
-
-// TODO : REMOVE LOGS
-import "hardhat/console.sol";
+//import "hardhat/console.sol";
 
 abstract contract SorareTokens {
     function ownerOf(uint256 tokenId) public view virtual returns (address);
+    function safeTransferFrom(address from, address to, uint256 tokenId) external virtual;
+    function balanceOf(address owner) public view virtual returns(uint256);
+    function tokenOfOwnerByIndex(address owner, uint256 index) public view virtual returns (uint256);
     function getCard(uint256 tokenId) public view virtual returns (
         uint256 playerId,
         uint16 season,
@@ -19,15 +20,14 @@ abstract contract SorareTokens {
 
 contract SubVault is IERC721Receiver {
     SorareTokens private sorareTokens = SorareTokens(0x629A673A8242c2AC4B7B8C5D8735fbeac21A6205);
-    uint8 private nbOfNFTReceived; // todo: remove
+    uint8 private nbOfNFTReceived;
     uint256 private allowedScarcity;
     
     constructor(uint256 _allowedScarcity){
         allowedScarcity = _allowedScarcity;
-        console.log("subvault created, scarcity : %s", allowedScarcity);
     }
     
-    function getNbOfNFTReceived() public view returns(uint8){ // todo: remove
+    function getNbOfNFTReceived() public view returns(uint8){
         return nbOfNFTReceived;
     }
 

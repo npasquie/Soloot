@@ -1,15 +1,21 @@
 const myWeb3 = require("web3");
+const hre = require("hardhat")
+const assert = require('assert');
+
 const constants = require("../constants")
 const sorareABI = require("./sorareABI.json")
+
 const nftReceiverJson = require("../artifacts/contracts/NFTReceiver.sol/NFTReceiver.json")
 const sampleNFTJson = require("../artifacts/contracts/SampleNFT.sol/SampleNFT.json")
 const subVaultJson = require("../artifacts/contracts/SubVault.sol/SubVault.json")
-const assert = require('assert');
-const hre = require("hardhat")
+const nflootJson = require("../artifacts/contracts/NFlooT.sol/NFlooT.json")
+const lootCoinJson = require("../artifacts/contracts/LootCoin.sol/LootCoin.json")
 
 const uniqueManuelCardId = '109885007871154280541989865417424574301301402155804365246179380903455247947907' // unique
 const superrareLanzini = '31035610442611312751521785752696909636386712321495552227249729640827270478289' // super rare
 const rareGonzallo = '75980177082139641009950466359570436445475229369489312117963960992921578840022' // rare
+
+const addressFullOfTokens = "0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8"
 
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
@@ -21,6 +27,7 @@ describe("sorare test suite", function (){
     let sorareTokens
     let nftReceiver
     let subVault
+    let nfloot
 
     before(async function (){
         hre.run("node")
@@ -69,6 +76,19 @@ describe("sorare test suite", function (){
     it("should refuse a sorare card with wrong scarcity", async function (){
         let owner = await impersonateCardOwner(rareGonzallo, sorareTokens, myweb3)
         await assert.rejects(async ()=>{await sendContrFunc(sorareTokens.methods.safeTransferFrom(owner,subVault.options.address,rareGonzallo),owner)})
+    })
+
+    it("should give 10 coins for a super rare card", async function (){
+        nfloot = await deployContract(nflootJson,constants.acc0, myweb3)
+        let owner = await impersonateCardOwner(superrareLanzini, sorareTokens, myweb3)
+        await sendContrFunc(sorareTokens.methods.setApprovalForAll(nfloot.options.address, true),owner)
+        // let approved = await sorareTokens.methods.isApprovedForAll(owner,nfloot.options.address).call()
+        // console.log(approved)
+        await sendContrFunc(nfloot.methods.quickSell([superrareLanzini]),owner)
+        let lootCoinAddress = await nfloot.methods.getLootCoinAddress().call()
+        let lootCoin = await new myweb3.eth.Contract(lootCoinJson.abi, lootCoinAddress)
+        let lootCoinBalance = await lootCoin.methods.balanceOf(owner).call()
+        assert.equal(lootCoinBalance,10)
     })
 })
 
