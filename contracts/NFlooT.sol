@@ -4,16 +4,24 @@ pragma solidity ^0.8.3;
 import "./SubVault.sol";
 import "./LootCoin.sol";
 
+// todo : remove assertions after checks
+// todo : note requirements UI implications
+
 // note pour moi meme : on ne verifiera pas lors des upgrade qu'on ne rend pas la meme carte qu'avec laquelle la personne est arrivee
-// pas de reequilibrage du vault faisable non plus :( // todo : quoique ????
 
 contract NFlooT {
-    SorareTokens constant private sorareTokens = SorareTokens(0x629A673A8242c2AC4B7B8C5D8735fbeac21A6205);
+    SorareTokens constant private SORARE_TOKENS = SorareTokens(0x629A673A8242c2AC4B7B8C5D8735fbeac21A6205);
+    bytes32 constant private CHAINLINK_KEY_HASH = 0xAA77729D3466CA35AE8D28B3BBAC7CC36A5031EFDC430821C02BC31A238AF445; // mainnet
+    
+    uint256 constant private MAX_UINT256 = type(uint256).max;  // 2**256 - 1
+    uint256 constant private ERC20DECIMALSMULTIPLIER = 10 ** 18;
+    
     SubVault[3] private vault;
     LootCoin private lootCoin;
     
-    uint256 constant internal MAX_UINT256 = 2**256 - 1;
-    uint256 constant internal ERC20DECIMALSMULTIPLIER = 10 ** 18;
+    uint256[3] private potentialVaultBalanceDrawNegativeImpact;
+    mapping(address => bytes32) private vrfRequestId;
+    mapping(bytes32 => uint256[3]) private vrfRequestAssociatedProbabilities;
     
     constructor() {
         vault = [new SubVault(0),new SubVault(1),new SubVault(2)]; // 0 -> unique, 1 -> superrare, 2 -> rare
@@ -24,99 +32,59 @@ contract NFlooT {
         return address(lootCoin);
     }
     
+    // core features
+    
     // needs approval before using
-    function quickSell(uint256[] calldata tokenIds) public {
-        bool receivedOnlyRareCards = true;
+    function quickSell(uint256[] calldata tokenIds) public { // gives lootcoins against cards
         uint256 tempScarcity;
         uint256 accumulatedScore;
         
         for(uint256 i = 0; i < tokenIds.length; i++){
-            ( , ,tempScarcity, , , ) = sorareTokens.getCard(tokenIds[i]);
-            if(tempScarcity != 2){
-                receivedOnlyRareCards = false;
-            }
-            sorareTokens.safeTransferFrom(msg.sender, address(vault[tempScarcity]), tokenIds[i]);
+            ( , ,tempScarcity, , , ) = SORARE_TOKENS.getCard(tokenIds[i]);
+            SORARE_TOKENS.safeTransferFrom(msg.sender, address(vault[tempScarcity]), tokenIds[i]);
             accumulatedScore += (10 ** (2 - tempScarcity)) * ERC20DECIMALSMULTIPLIER;
         }
-        lootCoin.mint(msg.sender,receivedOnlyRareCards ? accumulatedScore : getPrice(accumulatedScore)); // todo : recheck poor implementation
+        lootCoin.mint(msg.sender,accumulatedScore); // todo : add dev tax
     }
     
-    function getHoldingsScore() internal view returns(uint256) { // parameter A
-        uint256[3] memory vaultBalances = getVaultBalances();
+    function buyLootBox() public { // draws a card againt 2 lootcoins
+        require(SORARE_TOKENS.balanceOf(address(vault[2])) != 0, "at least one rare card must be in vault");
         
-        return((
-            vaultBalances[0] * 100 +
-            vaultBalances[1] * 10 +
-            vaultBalances[2]
-            ) * ERC20DECIMALSMULTIPLIER);
+        value_2_draw();
     }
     
-    function getPrice(uint256 score) internal view returns(uint256) {
-        // we need to prevent an attack where a card with a massive value can buy the whole vault, then get back his card back
-        uint256 nineTenthOfHoldingsScore = (getHoldingsScore()/10)*9;
-        
-        return(score < nineTenthOfHoldingsScore ? score : nineTenthOfHoldingsScore);
-    }
-    
-    // receives a score based on value provided by the user, and returns the contract-owned tokenId of the card to win
-    function getTokenIdByPlaying(uint256 playerScore) internal view returns(uint256) {
-        uint256[3] memory vaultBalances = getVaultBalances();
-        
-        // remember to check that score is sufficient for a try
-        
-        if(vaultBalances[2] == 0){ // no rare
+    function value_2_draw() private { // picks up the draw process for lootbox or upgrade of value 2
+        if(SORARE_TOKENS.balanceOf(address(vault[1])) != 0){
+            if(SORARE_TOKENS.balanceOf(address(vault[0])) != 0){
+                //  blue star func
+            } else { // no unique card available
+                
+            }
+        } else { // no super rare card available
             
         }
+    }
+
+    function drawFromAllVaultsWithLowScore(uint256 score) private{
+        assert(score == 2 * MAX_UINT256 || score == 11 * MAX_UINT256);
         
+        require(vrfRequestId[msg.sender] == 0, "this address is already waiting for a draw");
         
-        // if(vaultBalances[0] == 0){ // no cards in unique vault
-        //     if(vaultBalances[1] == 0){ // no cards in super rare vault
-        //         require(vaultBalances[2] > 0, "the contract has 0 card"); // no vault has cards
-        //         return getRandomTokenIdFromVault(2, vaultBalances); // only rare vault has cards
-        //     } else { // no unique, some superrare
-        //         if(vaultBalances[2] == 0){ // only superrare vault has cards
-        //             return getRandomTokenIdFromVault(1, vaultBalances);
-        //         } else { // rare & superrare vaults have cards
-        //             return getRandomTokenIdFromVault(pickFromScarcierVault(false, playerScore) ? 1 : 2, vaultBalances);
-        //         }
-        //     }
-        // } else { // some uniques
-        //     if(vaultBalances[1] == 0){ // some uniques, no superrare
-        //         if(vaultBalances[2] == 0){ // only uniques
-        //             return getRandomTokenIdFromVault(0, vaultBalances);
-        //         } else { // some uniques and rares
-        //             return getRandomTokenIdFromVault(pickFromScarcierVault(true, playerScore) ? 0 : 2, vaultBalances);
-        //         }
-        //     } else { // some uniques and superrare
-        //         if(vaultBalances[2] == 0){ // only uniques and superrare
-        //             return getRandomTokenIdFromVault(pickFromScarcierVault(false, playerScore) ? 0 : 1, vaultBalances); // no no no
-        //         }
-        //     }
-        // }
+        vrfRequestId[msg.sender] = 
     }
+
     
-    function pickFromScarcierVault(bool vaultsAreTheRareAndUniqueOnes, uint256 playerScore) internal view returns(bool){ // todo : ca va pas j'ai nique cette fonction avec le playerscore
-        uint8 valueMultiplier = vaultsAreTheRareAndUniqueOnes ? 100 : 10;
-        return getSecondRandomNumber() < MAX_UINT256 * ((playerScore - 1) / (valueMultiplier - 1)); // probability of picking the high vault
-    }
-    
-    function getRandomTokenIdFromVault(uint8 vaultScarcity, uint256[3] memory vaultBalances) internal view returns(uint256){
-        return sorareTokens.tokenOfOwnerByIndex(address(vault[vaultScarcity]),getIndexFromRandomUint(vaultBalances[vaultScarcity],getRandomNumber()));
-    }
-    
-    function getRandomNumber() internal view returns(uint256){ // todo : change to use chainlink vrf
+    // internal lib 
+
+    function getRandomNumber() private view returns(uint256){ // todo : change to use chainlink vrf
         return uint256(blockhash(block.number - 1));
     }
     
-    function getSecondRandomNumber() internal view returns(uint256){ // todo : change this awful trick
+    function getSecondRandomNumber() private view returns(uint256){ // todo : change this awful trick
         return uint256(keccak256(abi.encode(blockhash(block.number - 1))));
     }
     
-    function getVaultBalances() internal view returns(uint256[3] memory){
-        return [sorareTokens.balanceOf(address(vault[0])),sorareTokens.balanceOf(address(vault[1])),sorareTokens.balanceOf(address(vault[2]))];
-    }
-    
-    function getIndexFromRandomUint(uint256 arrayLength, uint256 randomNumber) internal pure returns(uint256){
+    function getIndexFromRandomUint(uint256 arrayLength, uint256 randomNumber) private pure returns(uint256){
         return(randomNumber/(MAX_UINT256/arrayLength));
     }
 }
