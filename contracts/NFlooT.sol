@@ -11,15 +11,27 @@ import "@chainlink/contracts/src/v0.8/dev/VRFConsumerBase.sol";
 
 // note pour moi meme : on ne verifiera pas lors des upgrade qu'on ne rend pas la meme carte qu'avec laquelle la personne est arrivee
 
+abstract contract UniswapV2Router02 {
+    function WETH() external virtual pure returns (address);
+    function swapETHForExactTokens(uint amountOut, address[] calldata path, address to, uint deadline) external virtual payable returns (uint[] memory amounts);
+}
+
 contract NFlooT is Ownable, VRFConsumerBase {
     // those constants are for ethereum mainnet
     SorareTokens constant private SORARE_TOKENS = SorareTokens(0x629A673A8242c2AC4B7B8C5D8735fbeac21A6205);
+    UniswapV2Router02 constant private UNISWAP_ROUTER = UniswapV2Router02(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
     bytes32 constant private CHAINLINK_KEY_HASH = 0xAA77729D3466CA35AE8D28B3BBAC7CC36A5031EFDC430821C02BC31A238AF445;
-    
-    uint256 private chainlinkVrfFee = 2 * ERC20_DECIMALS_MULTIPLIER;
+    uint8 constant private RARE = 2;
+    uint8 constant private SUPER_RARE = 1;
+    uint8 constant private UNIQUE = 0;
     
     uint256 constant private MAX_UINT256 = type(uint256).max;
     uint256 constant private ERC20_DECIMALS_MULTIPLIER = 10 ** 18;
+    
+    uint256 public devFee = 34154638541460313000000000000000000; // about 10$
+    uint256 public pendingDevLootCoins;
+    uint256 private chainlinkVrfFee = 2 * ERC20_DECIMALS_MULTIPLIER;
+    address private immutable linkAddress;
     
     SubVault[3] private vault;
     LootCoin private lootCoin;
@@ -30,8 +42,9 @@ contract NFlooT is Ownable, VRFConsumerBase {
     
     constructor(address _vrfCoordinator, address _link) 
         VRFConsumerBase(_vrfCoordinator, _link) {
-            vault = [new SubVault(0),new SubVault(1),new SubVault(2)]; // 0 -> unique, 1 -> superrare, 2 -> rare
+            vault = [new SubVault(UNIQUE),new SubVault(SUPER_RARE),new SubVault(RARE)]; // 0 -> unique, 1 -> superrare, 2 -> rare
             lootCoin = new LootCoin();
+            linkAddress = _link;
         }
     
     function getLootCoinAddress() public view returns(address) {
@@ -40,6 +53,15 @@ contract NFlooT is Ownable, VRFConsumerBase {
     
     function setChainlinkVrfFee(uint256 fee) public onlyOwner {
         chainlinkVrfFee = fee;
+    }
+    
+    function setDevFee(uint256 fee) public onlyOwner {
+        devFee = fee;
+    }
+    
+    function harvestDevLootCoins() public {
+        lootCoin.mint(owner(), pendingDevLootCoins);
+        pendingDevLootCoins = 0;
     }
     
     // core features
@@ -54,27 +76,66 @@ contract NFlooT is Ownable, VRFConsumerBase {
             SORARE_TOKENS.safeTransferFrom(msg.sender, address(vault[tempScarcity]), tokenIds[i]);
             accumulatedScore += getScarcityScore(tempScarcity);
         }
-        lootCoin.mint(msg.sender,accumulatedScore * ERC20_DECIMALS_MULTIPLIER); // todo : add dev tax
+        lootCoin.mint(msg.sender,accumulatedScore * ERC20_DECIMALS_MULTIPLIER * 95/100);
+        pendingDevLootCoins += accumulatedScore * ERC20_DECIMALS_MULTIPLIER * 5/100;
     }
     
-    function buyLootBox() public { // draws a card againt 2 lootcoins
-        require(getDrawableVaultBalance(2) > 0, "no rare card available for a draw");
+    function buyLootBox() public payable { // draws a card againt 2 lootcoins
+        require(getDrawableVaultBalance(RARE) > 0, "no rare card available for a draw");
+        buyLinkFee();
+        lootCoin.burn(msg.sender, 2 * ERC20_DECIMALS_MULTIPLIER);
         
         drawOfValue2();
     }
     
+    function upgrade(uint256[2] calldata tokenIds) public payable { // draws one card against 2 (with fair odds)
+        uint256 score = getScarcityScore(getCardScarcity(tokenIds[0])) + getScarcityScore(getCardScarcity(tokenIds[1]));
+        SORARE_TOKENS.safeTransferFrom(msg.sender, address(vault[getCardScarcity(tokenIds[0])]), tokenIds[0]); // todo check revert on non normal scarcity
+        SORARE_TOKENS.safeTransferFrom(msg.sender, address(vault[getCardScarcity(tokenIds[1])]), tokenIds[1]);
+        buyLinkFee();
+        payable(owner()).transfer(devFee);
+        if (score > 100){
+            drawFromOneVault(UNIQUE);
+        } else if (score == 2){
+            drawOfValue2();
+        } else {
+            if(getDrawableVaultBalance(UNIQUE) > 0){
+                if (score == 11) {
+                    drawFromAllVaultsWithLowScore(score * ERC20_DECIMALS_MULTIPLIER);
+                } else {
+                    if (getDrawableVaultBalance(RARE) > 0){
+                        drawFromAllVaultScoreIs20();
+                    } else {
+                        drawFromTwoVaults(SUPER_RARE,UNIQUE,score);
+                    }
+                }
+            } else {
+                drawFromOneVault(SUPER_RARE);
+            }
+        }
+    }
+    
+    // funcs
+    
+    function buyLinkFee() private {
+        address[] memory path = new address[](2);
+        path[0] = UNISWAP_ROUTER.WETH();
+        path[1] = linkAddress;
+        UNISWAP_ROUTER.swapETHForExactTokens(chainlinkVrfFee, path, address(this), block.timestamp);
+    }
+    
     function drawOfValue2() private { // picks up the draw process for lootbox or upgrade of value 2
-        if(getDrawableVaultBalance(1) > 0){
-            if(getDrawableVaultBalance(0) > 0){
+        if(getDrawableVaultBalance(SUPER_RARE) > 0){
+            if(getDrawableVaultBalance(UNIQUE) > 0){
                 drawFromAllVaultsWithLowScore(2 * ERC20_DECIMALS_MULTIPLIER);
             } else { // no unique card available
-                drawFromTwoVaults(2,1,2 * ERC20_DECIMALS_MULTIPLIER);
+                drawFromTwoVaults(RARE,SUPER_RARE,2 * ERC20_DECIMALS_MULTIPLIER);
             }
         } else { // no super rare card available
-            if(getDrawableVaultBalance(0) > 0){
-                drawFromTwoVaults(2,0,2 * ERC20_DECIMALS_MULTIPLIER);
+            if(getDrawableVaultBalance(UNIQUE) > 0){
+                drawFromTwoVaults(RARE,UNIQUE,2 * ERC20_DECIMALS_MULTIPLIER);
             } else { // only rare available
-                drawFromOneVault(2);
+                drawFromOneVault(RARE);
             }
         }
     }
@@ -87,13 +148,13 @@ contract NFlooT is Ownable, VRFConsumerBase {
             }
         }
         if(randomNumber < vrfRequestAssociatedProbabilities[requestId][2]){
-            sendRandomCardToAddressFromVault(2,userAwaitingDraw[requestId],randomness);
+            sendRandomCardToAddressFromVault(RARE,userAwaitingDraw[requestId],randomness);
             return;
         } else if (randomNumber < vrfRequestAssociatedProbabilities[requestId][2] + vrfRequestAssociatedProbabilities[requestId][1]) {
-            sendRandomCardToAddressFromVault(1,userAwaitingDraw[requestId],randomness);
+            sendRandomCardToAddressFromVault(SUPER_RARE,userAwaitingDraw[requestId],randomness);
             return;
         } else {
-            sendRandomCardToAddressFromVault(0,userAwaitingDraw[requestId],randomness);
+            sendRandomCardToAddressFromVault(UNIQUE,userAwaitingDraw[requestId],randomness);
         }
     }
     
@@ -103,7 +164,7 @@ contract NFlooT is Ownable, VRFConsumerBase {
         userAwaitingDraw[requestId] = msg.sender;
         vrfRequestAssociatedProbabilities[requestId][scarcity] = ERC20_DECIMALS_MULTIPLIER;
     }
-
+    
     function drawFromTwoVaults(uint8 lowerScarcity, uint8 higherScarcity, uint256 score) private{
         bytes32 requestId = requestRandomness(CHAINLINK_KEY_HASH, chainlinkVrfFee,0);
         uint256 higherScarcityDrawProbabilty = ((score - getScarcityScore(lowerScarcity)) * ERC20_DECIMALS_MULTIPLIER) / ((getScarcityScore(higherScarcity) - getScarcityScore(lowerScarcity)) * ERC20_DECIMALS_MULTIPLIER);
@@ -115,16 +176,16 @@ contract NFlooT is Ownable, VRFConsumerBase {
         vrfRequestAssociatedProbabilities[requestId][higherScarcity] = higherScarcityDrawProbabilty;
         vrfRequestAssociatedProbabilities[requestId][lowerScarcity] = ERC20_DECIMALS_MULTIPLIER - higherScarcityDrawProbabilty;
     }
-
-    function drawFromAllVaultsWithLowScore(uint256 score) private{
+    
+    function drawFromAllVaultsWithLowScore(uint256 score) private {
         assert(score == 2 * ERC20_DECIMALS_MULTIPLIER || score == 11 * ERC20_DECIMALS_MULTIPLIER);
         
         bytes32 requestId = requestRandomness(CHAINLINK_KEY_HASH, chainlinkVrfFee,0);
         uint256 scoreMinusOne = score - (1 * ERC20_DECIMALS_MULTIPLIER);
         
-        potentialVaultBalanceDrawNegativeImpact[0]++;
-        potentialVaultBalanceDrawNegativeImpact[1]++;
-        potentialVaultBalanceDrawNegativeImpact[2]++;
+        potentialVaultBalanceDrawNegativeImpact[RARE]++;
+        potentialVaultBalanceDrawNegativeImpact[SUPER_RARE]++;
+        potentialVaultBalanceDrawNegativeImpact[UNIQUE]++;
         userAwaitingDraw[requestId] = msg.sender;
         vrfRequestAssociatedProbabilities[requestId] = [
         ERC20_DECIMALS_MULTIPLIER, // evaluated last, no need to calculate
@@ -132,9 +193,27 @@ contract NFlooT is Ownable, VRFConsumerBase {
             ((200 * ERC20_DECIMALS_MULTIPLIER) - (11 * score)) / 189
             ];
     }
-
     
-    // internal lib 
+    function drawFromAllVaultScoreIs20() private {
+        bytes32 requestId = requestRandomness(CHAINLINK_KEY_HASH, chainlinkVrfFee,0);
+        
+        potentialVaultBalanceDrawNegativeImpact[RARE]++;
+        potentialVaultBalanceDrawNegativeImpact[SUPER_RARE]++;
+        potentialVaultBalanceDrawNegativeImpact[UNIQUE]++;
+        userAwaitingDraw[requestId] = msg.sender;
+        vrfRequestAssociatedProbabilities[requestId] = [
+            ERC20_DECIMALS_MULTIPLIER,
+            (800 * ERC20_DECIMALS_MULTIPLIER / 999),
+            (80 * ERC20_DECIMALS_MULTIPLIER / 999)
+            ];
+    }
+    
+    // private lib 
+    
+    function getCardScarcity(uint256 tokenId) private view returns(uint256){ // doesn't checks if card exists
+        ( , ,uint256 scarcity, , , ) = SORARE_TOKENS.getCard(tokenId);
+        return scarcity;
+    }
     
     function sendRandomCardToAddressFromVault(uint8 scarcity, address recipient, uint256 randomness) private {
         SORARE_TOKENS.safeTransferFrom(address(vault[scarcity]),recipient,getIndexFromRandomUint(SORARE_TOKENS.balanceOf(address(vault[scarcity])),uint256(keccak256(abi.encode(randomness)))));
