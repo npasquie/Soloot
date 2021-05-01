@@ -15,7 +15,12 @@ const uniqueManuelCardId = '1098850078711542805419898654174245743013014021558043
 const superrareLanzini = '31035610442611312751521785752696909636386712321495552227249729640827270478289' // super rare
 const rareGonzallo = '75980177082139641009950466359570436445475229369489312117963960992921578840022' // rare
 
+const linkTokenAddress = '0x514910771AF9Ca656af840dff83E8264EcF986CA'
+const vrfCoordinatorAddress = '0xf0d54349aDdcf704F77AE15b96510dEA15cb7952'
+
 const addressFullOfTokens = "0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8"
+
+const oneETHinWeis = '1000000000000000000'
 
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
@@ -28,6 +33,7 @@ describe("sorare test suite", function (){
     let nftReceiver
     let subVault
     let nfloot
+    let lootCoin
 
     before(async function (){
         hre.run("node")
@@ -79,16 +85,18 @@ describe("sorare test suite", function (){
     })
 
     it("should give 10 coins for a super rare card", async function (){
-        nfloot = await deployContract(nflootJson,constants.acc0, myweb3)
+        nfloot = await deployContract(nflootJson,constants.acc0, myweb3,[linkTokenAddress,vrfCoordinatorAddress])
         let owner = await impersonateCardOwner(superrareLanzini, sorareTokens, myweb3)
         await sendContrFunc(sorareTokens.methods.setApprovalForAll(nfloot.options.address, true),owner)
-        // let approved = await sorareTokens.methods.isApprovedForAll(owner,nfloot.options.address).call()
-        // console.log(approved)
         await sendContrFunc(nfloot.methods.quickSell([superrareLanzini]),owner)
         let lootCoinAddress = await nfloot.methods.getLootCoinAddress().call()
-        let lootCoin = await new myweb3.eth.Contract(lootCoinJson.abi, lootCoinAddress)
+        lootCoin = await new myweb3.eth.Contract(lootCoinJson.abi, lootCoinAddress)
         let lootCoinBalance = await lootCoin.methods.balanceOf(owner).call()
-        assert.equal(lootCoinBalance,10)
+        assert.equal(lootCoinBalance,10000000000000000000)
+    })
+
+    it("should fail to mint lootcoins from another address than NFloot contract", async function (){
+        await assert.rejects(async ()=>{await sendContrFunc(lootCoin.methods.mint(constants.acc0, oneETHinWeis + '0'),constants.acc0)})
     })
 })
 
@@ -116,5 +124,5 @@ async function sendOneEthTo(recipient, web3) {
     await web3.eth.sendTransaction({
         from: constants.acc0,
         to: recipient,
-        value: '1000000000000000000'}) // sends 1 ETH
+        value: oneETHinWeis}) // sends 1 ETH
 }

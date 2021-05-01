@@ -12,3 +12,4 @@ artifacts
 contracts/artifacts
 contracts/lib/artifacts
 scripts/launch_chain.sh
+/temp/
