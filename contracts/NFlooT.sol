@@ -74,14 +74,14 @@ contract NFlooT is Ownable, VRFConsumerBase {
         for(uint256 i = 0; i < tokenIds.length; i++){
             ( , ,tempScarcity, , , ) = SORARE_TOKENS.getCard(tokenIds[i]);
             SORARE_TOKENS.safeTransferFrom(msg.sender, address(vault[tempScarcity]), tokenIds[i]);
-            accumulatedScore += getScarcityScore(tempScarcity);
+            accumulatedScore += scarcityScore(tempScarcity);
         }
         lootCoin.mint(msg.sender,accumulatedScore * ERC20_DECIMALS_MULTIPLIER * 95/100);
         pendingDevLootCoins += accumulatedScore * ERC20_DECIMALS_MULTIPLIER * 5/100;
     }
     
     function buyLootBox() public payable { // draws a card againt 2 lootcoins
-        require(getDrawableVaultBalance(RARE) > 0, "no rare card available for a draw");
+        require(drawableVaultBalance(RARE) > 0, "no rare card available for a draw");
         buyLinkFee();
         lootCoin.burn(msg.sender, 2 * ERC20_DECIMALS_MULTIPLIER);
         
@@ -89,9 +89,9 @@ contract NFlooT is Ownable, VRFConsumerBase {
     }
     
     function upgrade(uint256[2] calldata tokenIds) public payable { // draws one card against 2 (with fair odds)
-        uint256 score = getScarcityScore(getCardScarcity(tokenIds[0])) + getScarcityScore(getCardScarcity(tokenIds[1]));
-        SORARE_TOKENS.safeTransferFrom(msg.sender, address(vault[getCardScarcity(tokenIds[0])]), tokenIds[0]); // todo check revert on non normal scarcity
-        SORARE_TOKENS.safeTransferFrom(msg.sender, address(vault[getCardScarcity(tokenIds[1])]), tokenIds[1]);
+        uint256 score = scarcityScore(cardScarcity(tokenIds[0])) + scarcityScore(cardScarcity(tokenIds[1]));
+        SORARE_TOKENS.safeTransferFrom(msg.sender, address(vault[cardScarcity(tokenIds[0])]), tokenIds[0]); // todo check revert on non normal scarcity
+        SORARE_TOKENS.safeTransferFrom(msg.sender, address(vault[cardScarcity(tokenIds[1])]), tokenIds[1]);
         buyLinkFee();
         payable(owner()).transfer(devFee);
         if (score > 100){
@@ -99,11 +99,11 @@ contract NFlooT is Ownable, VRFConsumerBase {
         } else if (score == 2){
             drawOfValue2();
         } else {
-            if(getDrawableVaultBalance(UNIQUE) > 0){
+            if(drawableVaultBalance(UNIQUE) > 0){
                 if (score == 11) {
                     drawFromAllVaultsWithLowScore(score * ERC20_DECIMALS_MULTIPLIER);
                 } else {
-                    if (getDrawableVaultBalance(RARE) > 0){
+                    if (drawableVaultBalance(RARE) > 0){
                         drawFromAllVaultScoreIs20();
                     } else {
                         drawFromTwoVaults(SUPER_RARE,UNIQUE,score);
@@ -125,15 +125,15 @@ contract NFlooT is Ownable, VRFConsumerBase {
     }
     
     function drawOfValue2() private { // picks up the draw process for lootbox or upgrade of value 2
-        if(getDrawableVaultBalance(SUPER_RARE) > 0){
-            if(getDrawableVaultBalance(UNIQUE) > 0){
+        if(drawableVaultBalance(SUPER_RARE) > 0){
+            if(drawableVaultBalance(UNIQUE) > 0){
                 drawFromAllVaultsWithLowScore(2 * ERC20_DECIMALS_MULTIPLIER);
             } else { // no unique card available
-                drawFromTwoVaults(RARE,SUPER_RARE,2 * ERC20_DECIMALS_MULTIPLIER);
+                drawFromTwoVaults(RARE,SUPER_RARE,2);
             }
         } else { // no super rare card available
-            if(getDrawableVaultBalance(UNIQUE) > 0){
-                drawFromTwoVaults(RARE,UNIQUE,2 * ERC20_DECIMALS_MULTIPLIER);
+            if(drawableVaultBalance(UNIQUE) > 0){
+                drawFromTwoVaults(RARE,UNIQUE,2);
             } else { // only rare available
                 drawFromOneVault(RARE);
             }
@@ -167,7 +167,7 @@ contract NFlooT is Ownable, VRFConsumerBase {
     
     function drawFromTwoVaults(uint8 lowerScarcity, uint8 higherScarcity, uint256 score) private{
         bytes32 requestId = requestRandomness(CHAINLINK_KEY_HASH, chainlinkVrfFee,0);
-        uint256 higherScarcityDrawProbabilty = ((score - getScarcityScore(lowerScarcity)) * ERC20_DECIMALS_MULTIPLIER) / ((getScarcityScore(higherScarcity) - getScarcityScore(lowerScarcity)) * ERC20_DECIMALS_MULTIPLIER);
+        uint256 higherScarcityDrawProbabilty = ((score - scarcityScore(lowerScarcity)) * ERC20_DECIMALS_MULTIPLIER) / ((scarcityScore(higherScarcity) - scarcityScore(lowerScarcity)) * ERC20_DECIMALS_MULTIPLIER);
         
         potentialVaultBalanceDrawNegativeImpact[lowerScarcity]++;
         potentialVaultBalanceDrawNegativeImpact[higherScarcity]++;
@@ -210,7 +210,7 @@ contract NFlooT is Ownable, VRFConsumerBase {
     
     // private lib 
     
-    function getCardScarcity(uint256 tokenId) private view returns(uint256){ // doesn't checks if card exists
+    function cardScarcity(uint256 tokenId) private view returns(uint256){ // doesn't checks if card exists
         ( , ,uint256 scarcity, , , ) = SORARE_TOKENS.getCard(tokenId);
         return scarcity;
     }
@@ -219,11 +219,11 @@ contract NFlooT is Ownable, VRFConsumerBase {
         SORARE_TOKENS.safeTransferFrom(address(vault[scarcity]),recipient,getIndexFromRandomUint(SORARE_TOKENS.balanceOf(address(vault[scarcity])),uint256(keccak256(abi.encode(randomness)))));
     }
     
-    function getScarcityScore(uint256 scarcity) private pure returns(uint256){
+    function scarcityScore(uint256 scarcity) private pure returns(uint256){
         return (10 ** (2 - scarcity));
     }
     
-    function getDrawableVaultBalance(uint8 scarcity) private view returns(uint256){
+    function drawableVaultBalance(uint8 scarcity) private view returns(uint256){
         return SORARE_TOKENS.balanceOf(address(vault[scarcity])) - potentialVaultBalanceDrawNegativeImpact[scarcity];
     }
     
