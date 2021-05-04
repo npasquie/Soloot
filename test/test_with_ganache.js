@@ -106,7 +106,7 @@ describe("sorare test suite", function (){
         await assert.rejects(async ()=>{await sendContrFunc(lootCoin.methods.mint(constants.acc0, oneETHinWeis + '0'),constants.acc0)})
     })
 
-    it("should refuse to draw a card because it has no rare card", async function (){ // todo : not working yet
+    it("should refuse to draw a card because it has no rare card", async function (){
         await assert.rejects(async ()=>{await sendContrFunc(lootCoin.methods.buyALootBox(), lanziniOwner)})
     })
 })

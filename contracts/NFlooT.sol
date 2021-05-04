@@ -6,6 +6,9 @@ import "./LootCoin.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@chainlink/contracts/src/v0.8/dev/VRFConsumerBase.sol";
 
+// todo : remove
+//import "hardhat/console.sol";
+
 // todo : remove assertions after checks
 // todo : note requirements UI implications
 

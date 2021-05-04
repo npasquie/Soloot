@@ -3,7 +3,9 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-//import "./NFlooT.sol";
+
+// todo : remove
+//import "hardhat/console.sol";
 
 // should we made this coin flashable - permitable - safewrapped ?
 
@@ -15,7 +17,6 @@ interface INFlooT {
 // for themselves in a different way than other users
 contract LootCoin is ERC20, Ownable {
     uint256 constant private ERC20_DECIMALS_MULTIPLIER = 10 ** 18;
-    INFlooT immutable public nfloot = INFlooT(owner());
     
     constructor() ERC20("LootCoin", "LOOT") {}
     
@@ -25,6 +26,6 @@ contract LootCoin is ERC20, Ownable {
 
     function buyALootBox() public payable{
         _burn(msg.sender, 2 * ERC20_DECIMALS_MULTIPLIER);
-        nfloot.buyLootBoxFromLootCoinContract(msg.sender);
+        INFlooT(owner()).buyLootBoxFromLootCoinContract(msg.sender);
     }
 }
