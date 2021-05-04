@@ -31,8 +31,7 @@ contract NFlooT is Ownable, VRFConsumerBase {
     uint256 public devFee = 34154638541460313000000000000000000; // about 10$
     uint256 public pendingDevLootCoins;
     uint256 private chainlinkVrfFee = 2 * ERC20_DECIMALS_MULTIPLIER;
-    address private immutable linkAddress;
-    
+
     SubVault[3] private vault;
     LootCoin private lootCoin;
     
@@ -44,7 +43,6 @@ contract NFlooT is Ownable, VRFConsumerBase {
         VRFConsumerBase(_vrfCoordinator, _link) {
             vault = [new SubVault(UNIQUE),new SubVault(SUPER_RARE),new SubVault(RARE)]; // 0 -> unique, 1 -> superrare, 2 -> rare
             lootCoin = new LootCoin();
-            linkAddress = _link;
         }
     
     function getLootCoinAddress() public view returns(address) {
@@ -79,13 +77,13 @@ contract NFlooT is Ownable, VRFConsumerBase {
         lootCoin.mint(msg.sender,accumulatedScore * ERC20_DECIMALS_MULTIPLIER * 95/100);
         pendingDevLootCoins += accumulatedScore * ERC20_DECIMALS_MULTIPLIER * 5/100;
     }
-    
-    function buyLootBox() public payable { // draws a card againt 2 lootcoins
+
+    // buys a lootbox for 2 lootcoins
+    function buyLootBoxFromLootCoinContract(address from) external payable {
         require(drawableVaultBalance(RARE) > 0, "no rare card available for a draw");
-        buyLinkFee();
-        lootCoin.burn(msg.sender, 2 * ERC20_DECIMALS_MULTIPLIER);
         
-        drawOfValue2();
+        buyLinkFee();
+        drawOfValue2(from);
     }
     
     function upgrade(uint256[2] calldata tokenIds) public payable { // draws one card against 2 (with fair odds)
@@ -95,22 +93,22 @@ contract NFlooT is Ownable, VRFConsumerBase {
         buyLinkFee();
         payable(owner()).transfer(devFee);
         if (score > 100){
-            drawFromOneVault(UNIQUE);
+            drawFromOneVault(UNIQUE, msg.sender);
         } else if (score == 2){
-            drawOfValue2();
+            drawOfValue2(msg.sender);
         } else {
             if(drawableVaultBalance(UNIQUE) > 0){
                 if (score == 11) {
-                    drawFromAllVaultsWithLowScore(score * ERC20_DECIMALS_MULTIPLIER);
+                    drawFromAllVaultsWithLowScore(score * ERC20_DECIMALS_MULTIPLIER, msg.sender);
                 } else {
                     if (drawableVaultBalance(RARE) > 0){
                         drawFromAllVaultScoreIs20();
                     } else {
-                        drawFromTwoVaults(SUPER_RARE,UNIQUE,score);
+                        drawFromTwoVaults(SUPER_RARE,UNIQUE, score, msg.sender);
                     }
                 }
             } else {
-                drawFromOneVault(SUPER_RARE);
+                drawFromOneVault(SUPER_RARE, msg.sender);
             }
         }
     }
@@ -120,22 +118,22 @@ contract NFlooT is Ownable, VRFConsumerBase {
     function buyLinkFee() private {
         address[] memory path = new address[](2);
         path[0] = UNISWAP_ROUTER.WETH();
-        path[1] = linkAddress;
+        path[1] = address(LINK);
         UNISWAP_ROUTER.swapETHForExactTokens(chainlinkVrfFee, path, address(this), block.timestamp);
     }
     
-    function drawOfValue2() private { // picks up the draw process for lootbox or upgrade of value 2
+    function drawOfValue2(address sender) private { // picks up the draw process for lootbox or upgrade of value 2
         if(drawableVaultBalance(SUPER_RARE) > 0){
             if(drawableVaultBalance(UNIQUE) > 0){
-                drawFromAllVaultsWithLowScore(2 * ERC20_DECIMALS_MULTIPLIER);
+                drawFromAllVaultsWithLowScore(2 * ERC20_DECIMALS_MULTIPLIER,sender);
             } else { // no unique card available
-                drawFromTwoVaults(RARE,SUPER_RARE,2);
+                drawFromTwoVaults(RARE,SUPER_RARE,2,sender);
             }
         } else { // no super rare card available
             if(drawableVaultBalance(UNIQUE) > 0){
-                drawFromTwoVaults(RARE,UNIQUE,2);
+                drawFromTwoVaults(RARE,UNIQUE,2,sender);
             } else { // only rare available
-                drawFromOneVault(RARE);
+                drawFromOneVault(RARE,sender);
             }
         }
     }
@@ -158,26 +156,26 @@ contract NFlooT is Ownable, VRFConsumerBase {
         }
     }
     
-    function drawFromOneVault(uint8 scarcity) private {
+    function drawFromOneVault(uint8 scarcity, address sender) private {
         bytes32 requestId = requestRandomness(CHAINLINK_KEY_HASH, chainlinkVrfFee,0);
         potentialVaultBalanceDrawNegativeImpact[scarcity]++;
-        userAwaitingDraw[requestId] = msg.sender;
+        userAwaitingDraw[requestId] = sender;
         vrfRequestAssociatedProbabilities[requestId][scarcity] = ERC20_DECIMALS_MULTIPLIER;
     }
     
-    function drawFromTwoVaults(uint8 lowerScarcity, uint8 higherScarcity, uint256 score) private{
+    function drawFromTwoVaults(uint8 lowerScarcity, uint8 higherScarcity, uint256 score, address sender) private{
         bytes32 requestId = requestRandomness(CHAINLINK_KEY_HASH, chainlinkVrfFee,0);
         uint256 higherScarcityDrawProbabilty = ((score - scarcityScore(lowerScarcity)) * ERC20_DECIMALS_MULTIPLIER) / ((scarcityScore(higherScarcity) - scarcityScore(lowerScarcity)) * ERC20_DECIMALS_MULTIPLIER);
         
         potentialVaultBalanceDrawNegativeImpact[lowerScarcity]++;
         potentialVaultBalanceDrawNegativeImpact[higherScarcity]++;
-        userAwaitingDraw[requestId] = msg.sender;
+        userAwaitingDraw[requestId] = sender;
         
         vrfRequestAssociatedProbabilities[requestId][higherScarcity] = higherScarcityDrawProbabilty;
         vrfRequestAssociatedProbabilities[requestId][lowerScarcity] = ERC20_DECIMALS_MULTIPLIER - higherScarcityDrawProbabilty;
     }
     
-    function drawFromAllVaultsWithLowScore(uint256 score) private {
+    function drawFromAllVaultsWithLowScore(uint256 score, address sender) private {
         assert(score == 2 * ERC20_DECIMALS_MULTIPLIER || score == 11 * ERC20_DECIMALS_MULTIPLIER);
         
         bytes32 requestId = requestRandomness(CHAINLINK_KEY_HASH, chainlinkVrfFee,0);
@@ -186,7 +184,7 @@ contract NFlooT is Ownable, VRFConsumerBase {
         potentialVaultBalanceDrawNegativeImpact[RARE]++;
         potentialVaultBalanceDrawNegativeImpact[SUPER_RARE]++;
         potentialVaultBalanceDrawNegativeImpact[UNIQUE]++;
-        userAwaitingDraw[requestId] = msg.sender;
+        userAwaitingDraw[requestId] = sender;
         vrfRequestAssociatedProbabilities[requestId] = [
         ERC20_DECIMALS_MULTIPLIER, // evaluated last, no need to calculate
             (10 * scoreMinusOne) / 189,

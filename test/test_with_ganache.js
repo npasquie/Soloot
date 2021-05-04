@@ -10,6 +10,7 @@ const sampleNFTJson = require("../artifacts/contracts/SampleNFT.sol/SampleNFT.js
 const subVaultJson = require("../artifacts/contracts/SubVault.sol/SubVault.json")
 const nflootJson = require("../artifacts/contracts/NFlooT.sol/NFlooT.json")
 const lootCoinJson = require("../artifacts/contracts/LootCoin.sol/LootCoin.json")
+const mockVrfCoordinatorJson = require("../artifacts/contracts/MockVRFCoordinator.sol/MockVRFCoordinator.json");
 
 const uniqueManuelCardId = '109885007871154280541989865417424574301301402155804365246179380903455247947907' // unique
 const superrareLanzini = '31035610442611312751521785752696909636386712321495552227249729640827270478289' // super rare
@@ -25,7 +26,7 @@ const oneETHinWeis = '1000000000000000000'
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
 describe("sorare test suite", function (){
-    this.timeout(5000)
+    this.timeout(10000)
 
     let myweb3
     let accounts
@@ -34,6 +35,8 @@ describe("sorare test suite", function (){
     let subVault
     let nfloot
     let lootCoin
+    let vrfMockCoordinator
+    let lanziniOwner
 
     before(async function (){
         hre.run("node")
@@ -62,6 +65,8 @@ describe("sorare test suite", function (){
         assert.equal(nbOfReceivedNFTs, 1)
     })
 
+    // those tests worked fine
+
     // it("should refuse an NFT that doesn't come from sorare", async function (){
     //     let sampleNFT = await deployContract(sampleNFTJson, constants.acc0, myweb3)
     //     subVault = await deployContract(subVaultJson, constants.acc0, myweb3, [0])
@@ -85,8 +90,10 @@ describe("sorare test suite", function (){
     })
 
     it("should give 9.5 coins for a super rare card", async function (){
-        nfloot = await deployContract(nflootJson,constants.acc0, myweb3,[linkTokenAddress,vrfCoordinatorAddress])
+        vrfMockCoordinator = await deployContract(mockVrfCoordinatorJson, constants.acc0, myweb3);
+        nfloot = await deployContract(nflootJson,constants.acc0, myweb3,[linkTokenAddress,vrfMockCoordinator.options.address])
         let owner = await impersonateCardOwner(superrareLanzini, sorareTokens, myweb3)
+        lanziniOwner = owner
         await sendContrFunc(sorareTokens.methods.setApprovalForAll(nfloot.options.address, true),owner)
         await sendContrFunc(nfloot.methods.quickSell([superrareLanzini]),owner)
         let lootCoinAddress = await nfloot.methods.getLootCoinAddress().call()
@@ -97,6 +104,10 @@ describe("sorare test suite", function (){
 
     it("should fail to mint lootcoins from another address than NFloot contract", async function (){
         await assert.rejects(async ()=>{await sendContrFunc(lootCoin.methods.mint(constants.acc0, oneETHinWeis + '0'),constants.acc0)})
+    })
+
+    it("should refuse to draw a card because it has no rare card", async function (){ // todo : not working yet
+        await assert.rejects(async ()=>{await sendContrFunc(lootCoin.methods.buyALootBox(), lanziniOwner)})
     })
 })
 
