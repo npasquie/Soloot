@@ -5,9 +5,10 @@ import "./SubVault.sol";
 import "./LootCoin.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@chainlink/contracts/src/v0.8/dev/VRFConsumerBase.sol";
+// import "./lib/UniswapV2Router02.sol";
 
 // todo : remove
-//import "hardhat/console.sol";
+import "hardhat/console.sol";
 
 // todo : remove assertions after checks
 // todo : note requirements UI implications
@@ -16,7 +17,13 @@ import "@chainlink/contracts/src/v0.8/dev/VRFConsumerBase.sol";
 
 abstract contract UniswapV2Router02 {
     function WETH() external virtual pure returns (address);
-    function swapETHForExactTokens(uint amountOut, address[] calldata path, address to, uint deadline) external virtual payable returns (uint[] memory amounts);
+    // function swapETHForExactTokens(uint amountOut, address[] calldata path, address to, uint deadline) external virtual payable returns (uint[] memory amounts);
+    function swapTokensForExactTokens(uint amountOut, uint amountInMax, address[] calldata path, address to, uint deadline) external virtual returns (uint[] memory amounts);
+}
+
+abstract contract WETH9 { // https://etherscan.io/address/0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2#code
+//    function deposit() public virtual payable; // called via address.call{}
+    function approve(address guy, uint wad) public virtual returns (bool);
 }
 
 contract NFlooT is Ownable, VRFConsumerBase {
@@ -46,6 +53,7 @@ contract NFlooT is Ownable, VRFConsumerBase {
         VRFConsumerBase(_vrfCoordinator, _link) {
             vault = [new SubVault(UNIQUE),new SubVault(SUPER_RARE),new SubVault(RARE)]; // 0 -> unique, 1 -> superrare, 2 -> rare
             lootCoin = new LootCoin();
+            WETH9(UNISWAP_ROUTER.WETH()).approve(address(UNISWAP_ROUTER), MAX_UINT256);
         }
     
     function getLootCoinAddress() public view returns(address) {
@@ -85,6 +93,7 @@ contract NFlooT is Ownable, VRFConsumerBase {
     function buyLootBoxFromLootCoinContract(address from) external payable {
         require(drawableVaultBalance(RARE) > 0, "no rare card available for a draw");
         
+        console.log(msg.value);
         buyLinkFee();
         drawOfValue2(from);
     }
@@ -119,10 +128,17 @@ contract NFlooT is Ownable, VRFConsumerBase {
     // funcs
     
     function buyLinkFee() private {
+        console.log("in buy link func");
         address[] memory path = new address[](2);
         path[0] = UNISWAP_ROUTER.WETH();
         path[1] = address(LINK);
-        UNISWAP_ROUTER.swapETHForExactTokens(chainlinkVrfFee, path, address(this), block.timestamp);
+        console.log(msg.value);
+        
+        (bool success, ) = UNISWAP_ROUTER.WETH().call{value: msg.value}(abi.encodeWithSignature("deposit()"));
+        require(success, "deposit in weth failed");
+        
+        UNISWAP_ROUTER.swapTokensForExactTokens(2 * ERC20_DECIMALS_MULTIPLIER, MAX_UINT256, path, address(this), block.timestamp + 1000);
+        console.log("out buy link func");
     }
     
     function drawOfValue2(address sender) private { // picks up the draw process for lootbox or upgrade of value 2

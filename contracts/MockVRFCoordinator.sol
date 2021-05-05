@@ -16,8 +16,8 @@ contract MockVRFCoordinator {
     
     function onTokenTransfer(address _sender, uint _value, bytes memory _data) external{
         (bytes32 keyHash, uint256 seed) = abi.decode(_data, (bytes32, uint256));
-        requestNonce++;
         request[requestNonce] = Request(_sender,makeRequestId(keyHash, makeVRFInputSeed(keyHash, seed, _sender, requestNonce)));
+        requestNonce++;
     }
     
     function resolveRequest(uint256 nonce) public {

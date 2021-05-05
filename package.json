@@ -16,7 +16,8 @@
   },
   "dependencies": {
     "@chainlink/contracts": "^0.1.7",
-    "@openzeppelin/contracts": "^4.0.0"
+    "@openzeppelin/contracts": "^4.0.0",
+    "hardhat-ethernal": "^0.2.3"
   },
   "scripts": {
     "test": "mocha"

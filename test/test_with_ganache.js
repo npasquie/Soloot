@@ -5,17 +5,19 @@ const assert = require('assert');
 const constants = require("../constants")
 const sorareABI = require("./sorareABI.json")
 
-const nftReceiverJson = require("../artifacts/contracts/NFTReceiver.sol/NFTReceiver.json")
-const sampleNFTJson = require("../artifacts/contracts/SampleNFT.sol/SampleNFT.json")
+const nftReceiverJson = require("../artifacts/contracts/test_stuff/NFTReceiver.sol/NFTReceiver.json")
+const sampleNFTJson = require("../artifacts/contracts/test_stuff/SampleNFT.sol/SampleNFT.json")
 const subVaultJson = require("../artifacts/contracts/SubVault.sol/SubVault.json")
 const nflootJson = require("../artifacts/contracts/NFlooT.sol/NFlooT.json")
 const lootCoinJson = require("../artifacts/contracts/LootCoin.sol/LootCoin.json")
 const mockVrfCoordinatorJson = require("../artifacts/contracts/MockVRFCoordinator.sol/MockVRFCoordinator.json");
+const testsJson = require("../artifacts/contracts/test_stuff/Tests.sol/Tests.json");
 
 const uniqueManuelCardId = '109885007871154280541989865417424574301301402155804365246179380903455247947907' // unique
 const superrareLanzini = '31035610442611312751521785752696909636386712321495552227249729640827270478289' // super rare
 const rareGonzallo = '75980177082139641009950466359570436445475229369489312117963960992921578840022' // rare
 
+const wethTokenAddress = '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2'
 const linkTokenAddress = '0x514910771AF9Ca656af840dff83E8264EcF986CA'
 const vrfCoordinatorAddress = '0xf0d54349aDdcf704F77AE15b96510dEA15cb7952'
 
@@ -26,7 +28,7 @@ const oneETHinWeis = '1000000000000000000'
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
 describe("sorare test suite", function (){
-    this.timeout(10000)
+    this.timeout(20000)
 
     let myweb3
     let accounts
@@ -36,7 +38,8 @@ describe("sorare test suite", function (){
     let nfloot
     let lootCoin
     let vrfMockCoordinator
-    let lanziniOwner
+    let superrareOwner
+    let rareOwner
 
     before(async function (){
         hre.run("node")
@@ -86,6 +89,7 @@ describe("sorare test suite", function (){
 
     it("should refuse a sorare card with wrong scarcity", async function (){
         let owner = await impersonateCardOwner(rareGonzallo, sorareTokens, myweb3)
+        rareOwner = owner
         await assert.rejects(async ()=>{await sendContrFunc(sorareTokens.methods.safeTransferFrom(owner,subVault.options.address,rareGonzallo),owner)})
     })
 
@@ -93,7 +97,7 @@ describe("sorare test suite", function (){
         vrfMockCoordinator = await deployContract(mockVrfCoordinatorJson, constants.acc0, myweb3);
         nfloot = await deployContract(nflootJson,constants.acc0, myweb3,[linkTokenAddress,vrfMockCoordinator.options.address])
         let owner = await impersonateCardOwner(superrareLanzini, sorareTokens, myweb3)
-        lanziniOwner = owner
+        superrareOwner = owner
         await sendContrFunc(sorareTokens.methods.setApprovalForAll(nfloot.options.address, true),owner)
         await sendContrFunc(nfloot.methods.quickSell([superrareLanzini]),owner)
         let lootCoinAddress = await nfloot.methods.getLootCoinAddress().call()
@@ -107,13 +111,28 @@ describe("sorare test suite", function (){
     })
 
     it("should refuse to draw a card because it has no rare card", async function (){
-        await assert.rejects(async ()=>{await sendContrFunc(lootCoin.methods.buyALootBox(), lanziniOwner)})
+        await assert.rejects(async ()=>{await sendContrFunc(lootCoin.methods.buyALootBox(), superrareOwner, 500000000000000000)})
+    })
+
+    it ("should draw a card from lootbox after having received a rare", async function (){
+        let superRareOwnerBalanceBefore = await sorareTokens.methods.balanceOf(rareOwner).call()
+        await sendContrFunc(sorareTokens.methods.setApprovalForAll(nfloot.options.address,true),rareOwner)
+        await sendContrFunc(nfloot.methods.quickSell([rareGonzallo]),rareOwner)
+        await sendContrFunc(lootCoin.methods.buyALootBox(),superrareOwner,1000000000000000000 * 0.0289839)
+        await sendContrFunc(vrfMockCoordinator.methods.resolveRequest(0),constants.acc0)
+        let superRareOwnerBalanceAfter = await sorareTokens.methods.balanceOf(rareOwner).call()
+        assert.equal(superRareOwnerBalanceAfter,superRareOwnerBalanceBefore + 1)
+    })
+
+    it ("just a test", async function (){
+        let testContr = await deployContract(testsJson,constants.acc0,myweb3)
+        await sendContrFunc(testContr.methods.uniswapTest(),constants.acc0,oneETHinWeis)
     })
 })
 
 // personnal library
-async function sendContrFunc(stuffToDo, from){
-    let gas = await stuffToDo.estimateGas({from: from})
+async function sendContrFunc(stuffToDo, from, value){
+    let gas = await stuffToDo.estimateGas({from: from, value: value})
     return await stuffToDo.send({from: from, gas: gas + 21000, gasPrice: '30000000'})
 }
 
