@@ -119,7 +119,7 @@ describe("sorare test suite", function (){
         let superRareOwnerBalanceBefore = await sorareTokens.methods.balanceOf(rareOwner).call()
         await sendContrFunc(sorareTokens.methods.setApprovalForAll(nfloot.options.address,true),rareOwner)
         await sendContrFunc(nfloot.methods.quickSell([rareGonzallo]),rareOwner)
-        await sendContrFunc(lootCoin.methods.buyALootBox(),superrareOwner,1000000000000000000 * 0.0289839)
+        await sendContrFunc(lootCoin.methods.buyALootBox(),superrareOwner,1000000000000000000 * 0.06)
         await sendContrFunc(vrfMockCoordinator.methods.resolveRequest(0),constants.acc0)
         let superRareOwnerBalanceAfter = await sorareTokens.methods.balanceOf(rareOwner).call()
         assert.equal(superRareOwnerBalanceAfter,superRareOwnerBalanceBefore + 1)

@@ -8,18 +8,12 @@ import "@chainlink/contracts/src/v0.8/dev/VRFConsumerBase.sol";
 // import "./lib/UniswapV2Router02.sol";
 
 // todo : remove
-import "hardhat/console.sol";
+ import "hardhat/console.sol";
 
 // todo : remove assertions after checks
 // todo : note requirements UI implications
 
 // note pour moi meme : on ne verifiera pas lors des upgrade qu'on ne rend pas la meme carte qu'avec laquelle la personne est arrivee
-
-// abstract contract UniswapV2Router02 {
-//     function WETH() external virtual pure returns (address);
-//     // function swapETHForExactTokens(uint amountOut, address[] calldata path, address to, uint deadline) external virtual payable returns (uint[] memory amounts);
-//     function swapTokensForExactTokens(uint amountOut, uint amountInMax, address[] calldata path, address to, uint deadline) external virtual returns (uint[] memory amounts);
-// }
 
 interface ISwapRouter { // uniswap V3
     function exactOutputSingle(ISwapRouter.ExactOutputSingleParams calldata params) external returns (uint256 amountIn);
@@ -40,6 +34,9 @@ interface ISwapRouter { // uniswap V3
 abstract contract WETHContract { // https://etherscan.io/address/0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2#code
     function deposit() public virtual payable; // called via address.call{}
     function approve(address guy, uint wad) public virtual returns (bool);
+
+    // todo : remove
+    mapping (address => uint) public balanceOf;
 }
 
 contract NFlooT is Ownable, VRFConsumerBase {
@@ -70,10 +67,7 @@ contract NFlooT is Ownable, VRFConsumerBase {
         VRFConsumerBase(_vrfCoordinator, _link) {
             vault = [new SubVault(UNIQUE),new SubVault(SUPER_RARE),new SubVault(RARE)]; // 0 -> unique, 1 -> superrare, 2 -> rare
             lootCoin = new LootCoin();
-            console.log("in constructr");
-            console.log(UNISWAP_ROUTER.WETH9());
-            WETHContract(UNISWAP_ROUTER.WETH9()).approve(address(UNISWAP_ROUTER), MAX_UINT256);
-            console.log("after approval");
+            require(WETHContract(UNISWAP_ROUTER.WETH9()).approve(address(UNISWAP_ROUTER), MAX_UINT256),"weth approval failed");
         }
     
     function getLootCoinAddress() public view returns(address) {
@@ -148,7 +142,9 @@ contract NFlooT is Ownable, VRFConsumerBase {
     // funcs
     
     function buyLinkFee() private {
+        console.log(msg.value);
         WETHContract(UNISWAP_ROUTER.WETH9()).deposit{value: msg.value}();
+        console.log(WETHContract(UNISWAP_ROUTER.WETH9()).balanceOf(address(this)));
         UNISWAP_ROUTER.exactOutputSingle(ISwapRouter.ExactOutputSingleParams({
             tokenIn: UNISWAP_ROUTER.WETH9(),
             tokenOut: address(LINK),
