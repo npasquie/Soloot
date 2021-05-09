@@ -15,22 +15,39 @@ import "hardhat/console.sol";
 
 // note pour moi meme : on ne verifiera pas lors des upgrade qu'on ne rend pas la meme carte qu'avec laquelle la personne est arrivee
 
-abstract contract UniswapV2Router02 {
-    function WETH() external virtual pure returns (address);
-    // function swapETHForExactTokens(uint amountOut, address[] calldata path, address to, uint deadline) external virtual payable returns (uint[] memory amounts);
-    function swapTokensForExactTokens(uint amountOut, uint amountInMax, address[] calldata path, address to, uint deadline) external virtual returns (uint[] memory amounts);
+// abstract contract UniswapV2Router02 {
+//     function WETH() external virtual pure returns (address);
+//     // function swapETHForExactTokens(uint amountOut, address[] calldata path, address to, uint deadline) external virtual payable returns (uint[] memory amounts);
+//     function swapTokensForExactTokens(uint amountOut, uint amountInMax, address[] calldata path, address to, uint deadline) external virtual returns (uint[] memory amounts);
+// }
+
+interface ISwapRouter { // uniswap V3
+    function exactOutputSingle(ISwapRouter.ExactOutputSingleParams calldata params) external returns (uint256 amountIn);
+    function WETH9() external pure returns (address);
+    
+    struct ExactOutputSingleParams {
+        address tokenIn;
+        address tokenOut;
+        uint24 fee;
+        address recipient;
+        uint256 deadline;
+        uint256 amountOut;
+        uint256 amountInMaximum;
+        uint160 sqrtPriceLimitX96;
+    }
 }
 
-abstract contract WETH9 { // https://etherscan.io/address/0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2#code
-//    function deposit() public virtual payable; // called via address.call{}
+abstract contract WETHContract { // https://etherscan.io/address/0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2#code
+    function deposit() public virtual payable; // called via address.call{}
     function approve(address guy, uint wad) public virtual returns (bool);
 }
 
 contract NFlooT is Ownable, VRFConsumerBase {
     // those constants are for ethereum mainnet
     SorareTokens constant private SORARE_TOKENS = SorareTokens(0x629A673A8242c2AC4B7B8C5D8735fbeac21A6205);
-    UniswapV2Router02 constant private UNISWAP_ROUTER = UniswapV2Router02(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
+    ISwapRouter constant private UNISWAP_ROUTER = ISwapRouter(0xE592427A0AEce92De3Edee1F18E0157C05861564);
     bytes32 constant private CHAINLINK_KEY_HASH = 0xAA77729D3466CA35AE8D28B3BBAC7CC36A5031EFDC430821C02BC31A238AF445;
+    
     uint8 constant private RARE = 2;
     uint8 constant private SUPER_RARE = 1;
     uint8 constant private UNIQUE = 0;
@@ -53,7 +70,10 @@ contract NFlooT is Ownable, VRFConsumerBase {
         VRFConsumerBase(_vrfCoordinator, _link) {
             vault = [new SubVault(UNIQUE),new SubVault(SUPER_RARE),new SubVault(RARE)]; // 0 -> unique, 1 -> superrare, 2 -> rare
             lootCoin = new LootCoin();
-            WETH9(UNISWAP_ROUTER.WETH()).approve(address(UNISWAP_ROUTER), MAX_UINT256);
+            console.log("in constructr");
+            console.log(UNISWAP_ROUTER.WETH9());
+            WETHContract(UNISWAP_ROUTER.WETH9()).approve(address(UNISWAP_ROUTER), MAX_UINT256);
+            console.log("after approval");
         }
     
     function getLootCoinAddress() public view returns(address) {
@@ -92,8 +112,8 @@ contract NFlooT is Ownable, VRFConsumerBase {
     // buys a lootbox for 2 lootcoins
     function buyLootBoxFromLootCoinContract(address from) external payable {
         require(drawableVaultBalance(RARE) > 0, "no rare card available for a draw");
+        require(msg.sender == address(lootCoin), "only lootcoin token contract can call this function");
         
-        console.log(msg.value);
         buyLinkFee();
         drawOfValue2(from);
     }
@@ -128,17 +148,17 @@ contract NFlooT is Ownable, VRFConsumerBase {
     // funcs
     
     function buyLinkFee() private {
-        console.log("in buy link func");
-        address[] memory path = new address[](2);
-        path[0] = UNISWAP_ROUTER.WETH();
-        path[1] = address(LINK);
-        console.log(msg.value);
-        
-        (bool success, ) = UNISWAP_ROUTER.WETH().call{value: msg.value}(abi.encodeWithSignature("deposit()"));
-        require(success, "deposit in weth failed");
-        
-        UNISWAP_ROUTER.swapTokensForExactTokens(2 * ERC20_DECIMALS_MULTIPLIER, MAX_UINT256, path, address(this), block.timestamp + 1000);
-        console.log("out buy link func");
+        WETHContract(UNISWAP_ROUTER.WETH9()).deposit{value: msg.value}();
+        UNISWAP_ROUTER.exactOutputSingle(ISwapRouter.ExactOutputSingleParams({
+            tokenIn: UNISWAP_ROUTER.WETH9(),
+            tokenOut: address(LINK),
+            fee: 3000, // 0.3% fee
+            recipient: address(this),
+            deadline: block.timestamp,
+            amountOut: ERC20_DECIMALS_MULTIPLIER * 2,
+            amountInMaximum: msg.value,
+            sqrtPriceLimitX96: 0
+        }));
     }
     
     function drawOfValue2(address sender) private { // picks up the draw process for lootbox or upgrade of value 2

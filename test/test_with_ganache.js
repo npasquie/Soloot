@@ -40,10 +40,11 @@ describe("sorare test suite", function (){
     let vrfMockCoordinator
     let superrareOwner
     let rareOwner
+    let testContr
 
     before(async function (){
         hre.run("node")
-        await delay(3000)
+        await delay(3500)
         await hre.network.provider.request({
             method: "hardhat_impersonateAccount",
             params: ["0xe50D690c68fBA9d6724e860D2980b7e05C50250f"]}
@@ -125,15 +126,23 @@ describe("sorare test suite", function (){
     })
 
     it ("just a test", async function (){
-        let testContr = await deployContract(testsJson,constants.acc0,myweb3)
+        testContr = await deployContract(testsJson,constants.acc0,myweb3)
         await sendContrFunc(testContr.methods.uniswapTest(),constants.acc0,oneETHinWeis)
+    })
+
+    it ("just another test", async function (){
+        await sendContrFunc(testContr.methods.lolTest(),constants.acc0,oneETHinWeis)
+    })
+
+    it ("ze good test with univ3", async function (){
+        await sendContrFunc(testContr.methods.uniswapV3Test(), constants.acc0, oneETHinWeis)
     })
 })
 
 // personnal library
 async function sendContrFunc(stuffToDo, from, value){
     let gas = await stuffToDo.estimateGas({from: from, value: value})
-    return await stuffToDo.send({from: from, gas: gas + 21000, gasPrice: '30000000'})
+    return await stuffToDo.send({from: from, gas: gas + 21000, gasPrice: '30000000', value: value})
 }
 
 async function deployContract(json, from, web3, args){
