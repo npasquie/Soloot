@@ -8,7 +8,7 @@ import "@chainlink/contracts/src/v0.8/dev/VRFConsumerBase.sol";
 // import "./lib/UniswapV2Router02.sol";
 
 // todo : remove
- import "hardhat/console.sol";
+import "hardhat/console.sol";
 
 // todo : remove assertions after checks
 // todo : note requirements UI implications
@@ -34,9 +34,6 @@ interface ISwapRouter { // uniswap V3
 abstract contract WETHContract { // https://etherscan.io/address/0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2#code
     function deposit() public virtual payable; // called via address.call{}
     function approve(address guy, uint wad) public virtual returns (bool);
-
-    // todo : remove
-    mapping (address => uint) public balanceOf;
 }
 
 contract NFlooT is Ownable, VRFConsumerBase {
@@ -142,9 +139,7 @@ contract NFlooT is Ownable, VRFConsumerBase {
     // funcs
     
     function buyLinkFee() private {
-        console.log(msg.value);
         WETHContract(UNISWAP_ROUTER.WETH9()).deposit{value: msg.value}();
-        console.log(WETHContract(UNISWAP_ROUTER.WETH9()).balanceOf(address(this)));
         UNISWAP_ROUTER.exactOutputSingle(ISwapRouter.ExactOutputSingleParams({
             tokenIn: UNISWAP_ROUTER.WETH9(),
             tokenOut: address(LINK),
@@ -162,6 +157,7 @@ contract NFlooT is Ownable, VRFConsumerBase {
             if(drawableVaultBalance(UNIQUE) > 0){
                 drawFromAllVaultsWithLowScore(2 * ERC20_DECIMALS_MULTIPLIER,sender);
             } else { // no unique card available
+                console.log("coucou 1");
                 drawFromTwoVaults(RARE,SUPER_RARE,2,sender);
             }
         } else { // no super rare card available
@@ -174,19 +170,25 @@ contract NFlooT is Ownable, VRFConsumerBase {
     }
     
     function fulfillRandomness(bytes32 requestId, uint256 randomness) internal override {
+        console.log("randomness : %s", randomness);
         uint256 randomNumber = randomness % ERC20_DECIMALS_MULTIPLIER;
+        console.log("randomNumber : %s", randomNumber);
         for(uint256 i = 0; i < 3; i++){
+            console.log("scarcity %s prob %s",i, vrfRequestAssociatedProbabilities[requestId][i]);
             if(vrfRequestAssociatedProbabilities[requestId][i] > 0){
                 potentialVaultBalanceDrawNegativeImpact[i]--;
             }
         }
-        if(randomNumber < vrfRequestAssociatedProbabilities[requestId][2]){
+        if(randomNumber < vrfRequestAssociatedProbabilities[requestId][RARE]){
+            console.log("draw a rare");
             sendRandomCardToAddressFromVault(RARE,userAwaitingDraw[requestId],randomness);
             return;
-        } else if (randomNumber < vrfRequestAssociatedProbabilities[requestId][2] + vrfRequestAssociatedProbabilities[requestId][1]) {
+        } else if (randomNumber < vrfRequestAssociatedProbabilities[requestId][RARE] + vrfRequestAssociatedProbabilities[requestId][SUPER_RARE]) {
+            console.log("draw a sr");
             sendRandomCardToAddressFromVault(SUPER_RARE,userAwaitingDraw[requestId],randomness);
             return;
         } else {
+            console.log("draw a UNIQUE");
             sendRandomCardToAddressFromVault(UNIQUE,userAwaitingDraw[requestId],randomness);
         }
     }
@@ -200,7 +202,13 @@ contract NFlooT is Ownable, VRFConsumerBase {
     
     function drawFromTwoVaults(uint8 lowerScarcity, uint8 higherScarcity, uint256 score, address sender) private{
         bytes32 requestId = requestRandomness(CHAINLINK_KEY_HASH, chainlinkVrfFee,0);
-        uint256 higherScarcityDrawProbabilty = ((score - scarcityScore(lowerScarcity)) * ERC20_DECIMALS_MULTIPLIER) / ((scarcityScore(higherScarcity) - scarcityScore(lowerScarcity)) * ERC20_DECIMALS_MULTIPLIER);
+        console.log("request ID: %s", uint256(requestId));
+        uint256 higherScarcityDrawProbabilty = 
+        ((score - scarcityScore(lowerScarcity)) * ERC20_DECIMALS_MULTIPLIER * ERC20_DECIMALS_MULTIPLIER) 
+            / ((scarcityScore(higherScarcity) - scarcityScore(lowerScarcity)) * ERC20_DECIMALS_MULTIPLIER);
+        console.log("higherScarcityDrawProbabilty: %s", higherScarcityDrawProbabilty);
+        console.log("nominateur %s", (score - scarcityScore(lowerScarcity)) * ERC20_DECIMALS_MULTIPLIER);
+        console.log("denominateur %s", ((scarcityScore(higherScarcity) - scarcityScore(lowerScarcity)) * ERC20_DECIMALS_MULTIPLIER));
         
         potentialVaultBalanceDrawNegativeImpact[lowerScarcity]++;
         potentialVaultBalanceDrawNegativeImpact[higherScarcity]++;
@@ -249,7 +257,14 @@ contract NFlooT is Ownable, VRFConsumerBase {
     }
     
     function sendRandomCardToAddressFromVault(uint8 scarcity, address recipient, uint256 randomness) private {
-        SORARE_TOKENS.safeTransferFrom(address(vault[scarcity]),recipient,getIndexFromRandomUint(SORARE_TOKENS.balanceOf(address(vault[scarcity])),uint256(keccak256(abi.encode(randomness)))));
+        SORARE_TOKENS.safeTransferFrom(
+            address(vault[scarcity]),
+            recipient,
+            getIndexFromRandomUint(
+                SORARE_TOKENS.balanceOf(
+                    address(vault[scarcity])),
+                    uint256(
+                        keccak256(abi.encode(randomness))))); // hash once again to have another random number
     }
     
     function scarcityScore(uint256 scarcity) private pure returns(uint256){
@@ -261,6 +276,8 @@ contract NFlooT is Ownable, VRFConsumerBase {
     }
     
     function getIndexFromRandomUint(uint256 arrayLength, uint256 randomNumber) private pure returns(uint256){
+        console.log("array length %s", arrayLength);
+        console.log("computed %s", randomNumber/(MAX_UINT256/arrayLength));
         return(randomNumber/(MAX_UINT256/arrayLength)); // todo : check edge cases
     }
 }

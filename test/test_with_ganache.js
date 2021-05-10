@@ -71,22 +71,22 @@ describe("sorare test suite", function (){
 
     // those tests worked fine
 
-    // it("should refuse an NFT that doesn't come from sorare", async function (){
-    //     let sampleNFT = await deployContract(sampleNFTJson, constants.acc0, myweb3)
-    //     subVault = await deployContract(subVaultJson, constants.acc0, myweb3, [0])
-    //     await sendContrFunc(sampleNFT.methods.awardItem(subVault.options.address), constants.acc0)
-    //     let nbOfReceivedNFTs = await subVault.methods.getNbOfNFTReceived().call()
-    //     assert.equal(nbOfReceivedNFTs, 0)
-    // })
+    it("should refuse an NFT that doesn't come from sorare", async function (){
+        let sampleNFT = await deployContract(sampleNFTJson, constants.acc0, myweb3)
+        subVault = await deployContract(subVaultJson, constants.acc0, myweb3, [0])
+        await sendContrFunc(sampleNFT.methods.awardItem(subVault.options.address), constants.acc0)
+        let nbOfReceivedNFTs = await sorareTokens.methods.balanceOf(subVault.options.address).call()
+        assert.equal(nbOfReceivedNFTs, 0)
+    })
 
-    // it("should accept a sorare card send from a contract", async function (){
-    //     await sendContrFunc(nftReceiver.methods.sendPossessedNFT(
-    //         constants.sorareTokensAddress,
-    //         uniqueManuelCardId,
-    //         subVault.options.address), constants.acc0)
-    //     let nbOfReceivedNFTs = await subVault.methods.getNbOfNFTReceived().call()
-    //     assert.equal(nbOfReceivedNFTs, 1)
-    // })
+    it("should accept a sorare card send from a contract", async function (){
+        await sendContrFunc(nftReceiver.methods.sendPossessedNFT(
+            constants.sorareTokensAddress,
+            uniqueManuelCardId,
+            subVault.options.address), constants.acc0)
+        let nbOfReceivedNFTs = await sorareTokens.methods.balanceOf(subVault.options.address).call()
+        assert.equal(nbOfReceivedNFTs, 1)
+    })
 
     it("should refuse a sorare card with wrong scarcity", async function (){
         let owner = await impersonateCardOwner(rareGonzallo, sorareTokens, myweb3)
@@ -96,7 +96,7 @@ describe("sorare test suite", function (){
 
     it("should give 9.5 coins for a super rare card", async function (){
         vrfMockCoordinator = await deployContract(mockVrfCoordinatorJson, constants.acc0, myweb3);
-        nfloot = await deployContract(nflootJson,constants.acc0, myweb3,[linkTokenAddress,vrfMockCoordinator.options.address])
+        nfloot = await deployContract(nflootJson,constants.acc0, myweb3,[vrfMockCoordinator.options.address,linkTokenAddress])
         let owner = await impersonateCardOwner(superrareLanzini, sorareTokens, myweb3)
         superrareOwner = owner
         await sendContrFunc(sorareTokens.methods.setApprovalForAll(nfloot.options.address, true),owner)
