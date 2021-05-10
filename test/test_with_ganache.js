@@ -116,13 +116,13 @@ describe("sorare test suite", function (){
     })
 
     it ("should draw a card from lootbox after having received a rare", async function (){
-        let superRareOwnerBalanceBefore = await sorareTokens.methods.balanceOf(rareOwner).call()
+        let superRareOwnerBalanceBefore = await sorareTokens.methods.balanceOf(superrareOwner).call()
         await sendContrFunc(sorareTokens.methods.setApprovalForAll(nfloot.options.address,true),rareOwner)
         await sendContrFunc(nfloot.methods.quickSell([rareGonzallo]),rareOwner)
         await sendContrFunc(lootCoin.methods.buyALootBox(),superrareOwner,1000000000000000000 * 0.06)
-        await sendContrFunc(vrfMockCoordinator.methods.resolveRequest(0),constants.acc0)
-        let superRareOwnerBalanceAfter = await sorareTokens.methods.balanceOf(rareOwner).call()
-        assert.equal(superRareOwnerBalanceAfter,superRareOwnerBalanceBefore + 1)
+        await sendContrFunc(vrfMockCoordinator.methods.resolveRequest(0,(1000000000000000000 * 0.1).toString()),constants.acc0)
+        let superRareOwnerBalanceAfter = await sorareTokens.methods.balanceOf(superrareOwner).call()
+        assert.equal(parseInt(superRareOwnerBalanceAfter),parseInt(superRareOwnerBalanceBefore) + 1)
     })
 
     it ("just a test", async function (){

@@ -27,9 +27,9 @@ contract MockVRFCoordinator {
         requestNonce++;
     }
     
-    function resolveRequest(uint256 nonce) public {
+    function resolveRequest(uint256 nonce, uint256 randomness) public {
         INFLoot nfloot = INFLoot(request[nonce].sender);
-        nfloot.rawFulfillRandomness(request[nonce].ID, uint256(keccak256(abi.encode(block.number))));
+        nfloot.rawFulfillRandomness(request[nonce].ID, randomness);
     }
     
     function makeRequestId(bytes32 _keyHash, uint256 _vRFInputSeed) internal pure returns (bytes32) {

@@ -157,7 +157,6 @@ contract NFlooT is Ownable, VRFConsumerBase {
             if(drawableVaultBalance(UNIQUE) > 0){
                 drawFromAllVaultsWithLowScore(2 * ERC20_DECIMALS_MULTIPLIER,sender);
             } else { // no unique card available
-                console.log("coucou 1");
                 drawFromTwoVaults(RARE,SUPER_RARE,2,sender);
             }
         } else { // no super rare card available
@@ -202,13 +201,9 @@ contract NFlooT is Ownable, VRFConsumerBase {
     
     function drawFromTwoVaults(uint8 lowerScarcity, uint8 higherScarcity, uint256 score, address sender) private{
         bytes32 requestId = requestRandomness(CHAINLINK_KEY_HASH, chainlinkVrfFee,0);
-        console.log("request ID: %s", uint256(requestId));
         uint256 higherScarcityDrawProbabilty = 
         ((score - scarcityScore(lowerScarcity)) * ERC20_DECIMALS_MULTIPLIER * ERC20_DECIMALS_MULTIPLIER) 
             / ((scarcityScore(higherScarcity) - scarcityScore(lowerScarcity)) * ERC20_DECIMALS_MULTIPLIER);
-        console.log("higherScarcityDrawProbabilty: %s", higherScarcityDrawProbabilty);
-        console.log("nominateur %s", (score - scarcityScore(lowerScarcity)) * ERC20_DECIMALS_MULTIPLIER);
-        console.log("denominateur %s", ((scarcityScore(higherScarcity) - scarcityScore(lowerScarcity)) * ERC20_DECIMALS_MULTIPLIER));
         
         potentialVaultBalanceDrawNegativeImpact[lowerScarcity]++;
         potentialVaultBalanceDrawNegativeImpact[higherScarcity]++;
@@ -257,14 +252,16 @@ contract NFlooT is Ownable, VRFConsumerBase {
     }
     
     function sendRandomCardToAddressFromVault(uint8 scarcity, address recipient, uint256 randomness) private {
+        console.log(recipient);
         SORARE_TOKENS.safeTransferFrom(
             address(vault[scarcity]),
             recipient,
-            getIndexFromRandomUint(
-                SORARE_TOKENS.balanceOf(
-                    address(vault[scarcity])),
-                    uint256(
-                        keccak256(abi.encode(randomness))))); // hash once again to have another random number
+            SORARE_TOKENS.tokenOfOwnerByIndex(address(vault[scarcity]),
+                getIndexFromRandomUint(
+                    SORARE_TOKENS.balanceOf(
+                        address(vault[scarcity])),
+                        uint256(
+                            keccak256(abi.encode(randomness)))))); // hash once again to have another random number
     }
     
     function scarcityScore(uint256 scarcity) private pure returns(uint256){
@@ -276,8 +273,6 @@ contract NFlooT is Ownable, VRFConsumerBase {
     }
     
     function getIndexFromRandomUint(uint256 arrayLength, uint256 randomNumber) private pure returns(uint256){
-        console.log("array length %s", arrayLength);
-        console.log("computed %s", randomNumber/(MAX_UINT256/arrayLength));
         return(randomNumber/(MAX_UINT256/arrayLength)); // todo : check edge cases
     }
 }
