@@ -4,6 +4,7 @@ import {Button} from 'react-bootstrap'
 import {useEthers} from "@usedapp/core"
 import {BrowserRouter as Router, Switch, Route, Link} from "react-router-dom";
 import Home from "../Home";
+import Quicksell from "../Quicksell";
 
 function App() {
     const { activateBrowserWallet, account } = useEthers()
@@ -11,11 +12,13 @@ function App() {
     return (
         <div className="App">
             <Router>
-            <h1><Link to="/">Soloot</Link></h1>
+            <h1>
+                <Link to="/">Soloot</Link>
+            </h1>
             {account ?
                     <Switch>
                         <Route path="/quicksell">
-
+                            <Quicksell/>
                         </Route>
                         <Route path="/upgrade">
 
