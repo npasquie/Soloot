@@ -25,8 +25,6 @@ const addressFullOfTokens = "0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8"
 
 const oneETHinWeis = '1000000000000000000'
 
-const delay = ms => new Promise(res => setTimeout(res, ms));
-
 describe("sorare test suite", function (){
     this.timeout(20000)
 
@@ -116,12 +114,18 @@ describe("sorare test suite", function (){
     })
 
     it ("should draw a card from lootbox after having received a rare", async function (){
+        // ongoing mystery here ...
+        await hre.network.provider.request({method:"evm_mine"})
         let superRareOwnerBalanceBefore = await sorareTokens.methods.balanceOf(superrareOwner).call()
+        console.log(superrareOwner)
+        console.log(superRareOwnerBalanceBefore)
         await sendContrFunc(sorareTokens.methods.setApprovalForAll(nfloot.options.address,true),rareOwner)
         await sendContrFunc(nfloot.methods.quickSell([rareGonzallo]),rareOwner)
         await sendContrFunc(lootCoin.methods.buyALootBox(),superrareOwner,1000000000000000000 * 0.06)
         await sendContrFunc(vrfMockCoordinator.methods.resolveRequest(0,(1000000000000000000 * 0.1).toString()),constants.acc0)
+        await hre.network.provider.request({method:"evm_mine"})
         let superRareOwnerBalanceAfter = await sorareTokens.methods.balanceOf(superrareOwner).call()
+        console.log(superRareOwnerBalanceAfter)
         assert.equal(parseInt(superRareOwnerBalanceAfter),parseInt(superRareOwnerBalanceBefore) + 1)
     })
 
@@ -165,3 +169,5 @@ async function sendOneEthTo(recipient, web3) {
         to: recipient,
         value: oneETHinWeis}) // sends 1 ETH
 }
+
+const delay = ms => new Promise(res => setTimeout(res, ms));

@@ -253,6 +253,7 @@ contract NFlooT is Ownable, VRFConsumerBase {
     
     function sendRandomCardToAddressFromVault(uint8 scarcity, address recipient, uint256 randomness) private {
         console.log(recipient);
+        console.log(SORARE_TOKENS.balanceOf(recipient));
         SORARE_TOKENS.safeTransferFrom(
             address(vault[scarcity]),
             recipient,
@@ -262,6 +263,7 @@ contract NFlooT is Ownable, VRFConsumerBase {
                         address(vault[scarcity])),
                         uint256(
                             keccak256(abi.encode(randomness)))))); // hash once again to have another random number
+        console.log(SORARE_TOKENS.balanceOf(recipient));
     }
     
     function scarcityScore(uint256 scarcity) private pure returns(uint256){
